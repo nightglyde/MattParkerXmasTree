@@ -12,7 +12,7 @@ faster or slower than the animation speed of this program.
 
 # use harvard's tree or mattparker's tree
 # default is False
-USE_HARVARD = True
+USE_HARVARD = False
 
 # coordinates and sequence folder for matt parker's xmas tree
 coords_mattparker = []
@@ -53,7 +53,7 @@ if USE_HARVARD:
     coords = coords_harvard
     folder = folder_harvard
 else:
-    cords  = coords_mattparker
+    coords  = coords_mattparker
     folder = folder_mattparker
 
 sequences = []
