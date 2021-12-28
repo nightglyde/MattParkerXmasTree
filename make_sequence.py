@@ -62,14 +62,14 @@ folder_harvard = "sequences_harvard"
 def cubeGridRotate(args):
     n, coords, scale, num_frames = args
     rainbow_size = scale*10.0
-    colour_speed = 360/num_frames*3
-    rotate_speed = 360/num_frames*2
+    colour_speed = 360/num_frames*2
+    rotate_speed = 360/num_frames
 
     # rotation
     r = R.from_euler("xyz",
-        [rotate_speed*n,
-         rotate_speed*n,
-         rotate_speed*n,
+        [0,#rotate_speed*n*2,
+         rotate_speed*n*3,
+         rotate_speed*n*4,
         ],
         degrees=True)
     new_coords = r.apply(coords)
@@ -97,36 +97,28 @@ def cubeGridRotate(args):
 def orbit(args):
     n, coords, scale, num_frames = args
     rainbow_size = scale*10.0
-    colour_speed = 360/num_frames*3
-    rotate_speed = 360/num_frames*2
+    colour_speed = 360/num_frames*2
+    rotate_speed = 360/num_frames
 
     # rotation
     r = R.from_euler("xyz",
-        [rotate_speed*n,
-         rotate_speed*n,
-         rotate_speed*n,
+        [0,#rotate_speed*n*2,
+         rotate_speed*n*3,
+         rotate_speed*n*4,
         ],
         degrees=True)
     new_coords = r.apply(coords)
 
     planets = [
         # position,       radius squared
-        ((scale/2, 0, 0), math.pow(scale/5,2)),
-        ((-scale/2, 0, 0), math.pow(scale/3,2)),
+        ((scale/2, 0, 0), math.pow(scale/3,2)),
+        ((-scale/2, 0, 0), math.pow(scale/2,2)),
     ]
 
-    #threshold = math.pow(scale/2, 2)
-
     num_colours = 3
-    #factors = primeFactors(num_frames, num_colours)
-    #colours = [(colour_speed*n*f + c*360/num_colours)%360 for c, f in enumerate(factors)]
-    #grid_size = scale * (0.2 + 0.3*abs(math.sin(math.radians(rotate_speed*n))))
-    #assert 0.55 > grid_size/scale > 0.15
 
     frame = []
     for x, y, z in new_coords:
-        #colour = int(((x // grid_size) + (y // grid_size) + (z // grid_size)) % num_colours)
-
         for i, planet in enumerate(planets):
             planet_coords, planet_size = planet
             dist = distSqr((x, y, z), planet_coords)
@@ -136,8 +128,6 @@ def orbit(args):
         else:
             frame.extend([0, 0, 0])
             continue
-
-        #colour = random.randint(0, 2)
 
         if colour == 0:
             fade = (x%rainbow_size)/rainbow_size*360
@@ -171,7 +161,10 @@ def makeSequence(frameFunc, coords, scale, num_frames):
     return sequence
 
 num_frames = 120*6
-frame_functions = [cubeGridRotate, orbit]
+frame_functions = [
+    cubeGridRotate,
+    orbit,
+]
 for frameFunc in frame_functions:
     seq_mattparker = makeSequence(frameFunc, coords_mattparker, scale_mattparker, num_frames)
     writeSequence(frameFunc.__name__, folder_mattparker, seq_mattparker)

@@ -4,6 +4,7 @@ from mpl_toolkits.mplot3d.axes3d import Axes3D
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import csv, os
+from scipy.spatial.transform import Rotation as R
 
 print("""
 Remember that the animation on the real tree might be significantly
@@ -78,6 +79,25 @@ for row in coords:
 
 ranges = [maxi - mini for mini, maxi in zip(min_coords, max_coords)]
 
+"""
+start = (0.5, 0, 1.5)
+curvy = []
+num_frames = 360
+rotate_speed = 360/num_frames
+for n in range(num_frames):
+    r = R.from_euler("xyz",
+        [0,#rotate_speed*n,
+         rotate_speed*n*3,
+         rotate_speed*n*4,
+        ],
+        degrees=True)
+    point = r.apply(start)
+    curvy.append(point.tolist())
+print(curvy)
+X, Y, Z = zip(*curvy)
+Z = [z+ranges[2]/2 for z in Z]
+"""
+
 # make the plot
 fig = plt.figure()
 ax = fig.add_subplot(projection='3d')
@@ -97,6 +117,7 @@ def update_colours(frame):
     colour_values = next(framegen)
     ax.clear()
     ax.scatter(xs, ys, zs, c=colour_values)
+    #ax.plot(X, Y, Z)
 
 ani = animation.FuncAnimation(fig, update_colours, interval=17)
 
