@@ -7,23 +7,7 @@ from timeit import default_timer as timer
 from multiprocessing import Pool, cpu_count
 from scipy.spatial.transform import Rotation as R
 import numpy as np
-
-primes = [2, 3, 5, 7, 11]
-
-mem = {}
-def primeFactors(n, count):
-    if (n, count) in mem:
-        return mem[(n, count)]
-    factors = []
-    for prime in primes:
-        if n % prime == 0:
-            factors.append(prime)
-        if len(factors) >= count:
-            break
-    if len(factors) < count:
-        raise Exception("this isn't a very good frame count")
-    mem[(n, count)] = factors
-    return factors
+import random
 
 def hsl_to_rgb(h, s, l):
     h = h/360
@@ -36,10 +20,13 @@ def getScale(coords):
 
 def centrifyCoords(coords):
     xs, ys, zs = zip(*coords)
-    average_x = (min(xs)+max(xs))/2#np.median(xs)
-    average_y = (min(ys)+max(ys))/2#np.median(ys)
-    average_z = (min(zs)+max(zs))/2#np.median(zs)
+    average_x = (min(xs)+max(xs))/2
+    average_y = (min(ys)+max(ys))/2
+    average_z = (min(zs)+max(zs))/2
     return [(x-average_x, y-average_y, z-average_z) for x, y, z in coords]
+
+def distSqr(a, b):
+    return math.pow(a[0]-b[0], 2) + math.pow(a[1]-b[1], 2) + math.pow(a[2]-b[2], 2)
 
 def writeSequence(name, folder, sequence):
     num_lights = len(sequence[0])//3
@@ -72,9 +59,9 @@ with open("coords_adjusted.txt") as f:
 scale_harvard = getScale(coords_harvard)
 folder_harvard = "sequences_harvard"
 
-def makeRainbowFrame(args):#n, coords, scale, num_frames):
+def cubeGridRotate(args):
     n, coords, scale, num_frames = args
-    rainbow_size = scale*0.5
+    rainbow_size = scale*10.0
     colour_speed = 360/num_frames*3
     rotate_speed = 360/num_frames*2
 
@@ -87,39 +74,92 @@ def makeRainbowFrame(args):#n, coords, scale, num_frames):
         degrees=True)
     new_coords = r.apply(coords)
 
-    #threshold = math.pow(scale/2, 2)
-
-    num_colours = 2
-    #factors = primeFactors(num_frames, num_colours)
-    #colours = [(colour_speed*n*f + c*360/num_colours)%360 for c, f in enumerate(factors)]
-    grid_size = scale * (0.3 + 0.2*math.sin(math.radians(rotate_speed*n)))
-    assert 0.55 > grid_size/scale > 0.05
+    num_colours = 3
+    grid_size = scale * (0.2 + 0.3*abs(math.sin(math.radians(rotate_speed*n))))
+    assert 0.55 > grid_size/scale > 0.15
 
     frame = []
     for x, y, z in new_coords:
-        #dist = math.pow(x, 2) + math.pow(y, 2) + math.pow(z, 2)
-        #if dist > threshold:
-        #    frame.extend([0, 0, 0])
-        #    continue
         colour = int(((x // grid_size) + (y // grid_size) + (z // grid_size)) % num_colours)
-        #h = colours[colour]
-        #h = (90*colour) % 360
-        h = (colour_speed*n + 60*colour) % 360
-        #h = ((z%rainbow_size)/rainbow_size*360 + colour_speed*n + 180*extra) % 360
+        if colour == 0:
+            fade = (x%rainbow_size)/rainbow_size*360
+        elif colour == 1:
+            fade = (y%rainbow_size)/rainbow_size*360
+        elif colour == 2:
+            fade = (z%rainbow_size)/rainbow_size*360
+        h = (fade + colour_speed*n + 60*colour) % 360
         s = 1.0
         l = 0.5
         rgb = hsl_to_rgb(h, s, l)
         frame.extend(rgb)
     return frame
 
-def makeRainbow(coords, scale, num_frames):
+def orbit(args):
+    n, coords, scale, num_frames = args
+    rainbow_size = scale*10.0
+    colour_speed = 360/num_frames*3
+    rotate_speed = 360/num_frames*2
+
+    # rotation
+    r = R.from_euler("xyz",
+        [rotate_speed*n,
+         rotate_speed*n,
+         rotate_speed*n,
+        ],
+        degrees=True)
+    new_coords = r.apply(coords)
+
+    planets = [
+        # position,       radius squared
+        ((scale/2, 0, 0), math.pow(scale/5,2)),
+        ((-scale/2, 0, 0), math.pow(scale/3,2)),
+    ]
+
+    #threshold = math.pow(scale/2, 2)
+
+    num_colours = 3
+    #factors = primeFactors(num_frames, num_colours)
+    #colours = [(colour_speed*n*f + c*360/num_colours)%360 for c, f in enumerate(factors)]
+    #grid_size = scale * (0.2 + 0.3*abs(math.sin(math.radians(rotate_speed*n))))
+    #assert 0.55 > grid_size/scale > 0.15
+
+    frame = []
+    for x, y, z in new_coords:
+        #colour = int(((x // grid_size) + (y // grid_size) + (z // grid_size)) % num_colours)
+
+        for i, planet in enumerate(planets):
+            planet_coords, planet_size = planet
+            dist = distSqr((x, y, z), planet_coords)
+            if dist <= planet_size:
+                colour = i
+                break
+        else:
+            frame.extend([0, 0, 0])
+            continue
+
+        #colour = random.randint(0, 2)
+
+        if colour == 0:
+            fade = (x%rainbow_size)/rainbow_size*360
+        elif colour == 1:
+            fade = (y%rainbow_size)/rainbow_size*360
+        elif colour == 2:
+            fade = (z%rainbow_size)/rainbow_size*360
+        h = (fade + colour_speed*n + 60*colour) % 360
+        s = 1.0
+        l = 0.5
+        rgb = hsl_to_rgb(h, s, l)
+        frame.extend(rgb)
+    return frame
+
+def makeSequence(frameFunc, coords, scale, num_frames):
     coords = centrifyCoords(coords)
     start = timer()
     print("starting computations on {} cores".format(cpu_count()))
     values = [(n, coords, scale, num_frames) for n in range(num_frames)]
 
     with Pool() as pool:
-        sequence = pool.map(makeRainbowFrame, values)
+        sequence = pool.map(frameFunc, values)
         print(len(sequence), type(sequence))
     end = timer()
     print("elapsed time: {}".format(end-start))
@@ -131,9 +171,11 @@ def makeRainbow(coords, scale, num_frames):
     return sequence
 
 num_frames = 120*6
-rainbow_mattparker = makeRainbow(coords_mattparker, scale_mattparker, num_frames)
-rainbow_harvard    = makeRainbow(coords_harvard, scale_harvard, num_frames)
+frame_functions = [cubeGridRotate, orbit]
+for frameFunc in frame_functions:
+    seq_mattparker = makeSequence(frameFunc, coords_mattparker, scale_mattparker, num_frames)
+    writeSequence(frameFunc.__name__, folder_mattparker, seq_mattparker)
 
-writeSequence("rainbow", folder_mattparker, rainbow_mattparker)
-writeSequence("rainbow", folder_harvard, rainbow_harvard)
+    seq_harvard    = makeSequence(frameFunc, coords_harvard,    scale_harvard,    num_frames)
+    writeSequence(frameFunc.__name__, folder_harvard, seq_harvard)
 
