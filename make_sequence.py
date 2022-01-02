@@ -17,10 +17,21 @@ def hsl_to_rgb(h, s, l):
     rgb = colorsys.hls_to_rgb(h, l, s)
     return [int(x*MAX_BRIGHTNESS) for x in rgb]
 
-def combine(rgb1, rgb2):
-    r1, g1, b1 = rgb1
-    r2, g2, b2 = rgb2
-    return [max(r1, r2), max(g1, g2), max(b1, b2)]
+def combine(a, b):
+    return [max(pair) for pair in zip(a, b)]
+
+def combineFrames(a, b):
+    num_lights = len(a)//3
+    frame = []
+    for i in range(num_lights):
+        ra, ga, ba = a[i*3], a[i*3+1], a[i*3+2]
+        rb, gb, bb = b[i*3], b[i*3+1], b[i*3+2]
+
+        if ra or ga or ba:
+            frame.extend([ra, ga, ba])
+        else:
+            frame.extend([rb, gb, bb])
+    return frame
 
 def getScale(coords):
     xs, ys, zs = zip(*coords)
@@ -75,9 +86,9 @@ def cubeGridRotate(args):
 
     # rotation
     r = R.from_euler("xyz",
-        [0,#rotate_speed*n*2,
+        [rotate_speed*n*2,
          rotate_speed*n*3,
-         rotate_speed*n*4,
+         rotate_speed*n*5,
         ],
         degrees=True)
     new_coords = r.apply(coords)
@@ -166,33 +177,74 @@ def binaryStars(args):
         degrees=True)
     new_coords = r.apply(coords)
 
-    planets = [
+    spheres = [
         # position,       radius squared
         ((scale*0.5, 0, 0), math.pow(scale*0.55,2)),
         ((scale*-0.6655, 0, 0), math.pow(scale*0.5,2)),
     ]
 
-    num_colours = 3
-
     frame = []
     for x, y, z in new_coords:
-        for i, planet in enumerate(planets):
-            planet_coords, planet_size = planet
-            dist = distSqr((x, y, z), planet_coords)
-            if dist <= planet_size:
+        for i, sphere in enumerate(spheres):
+            sphere_coords, sphere_size = sphere
+            dist = distSqr((x, y, z), sphere_coords)
+            if dist <= sphere_size:
                 colour = i
                 break
         else:
             frame.extend([0, 0, 0])
             continue
 
-        if colour == 0:
-            fade = (x%rainbow_size)/rainbow_size*360
-        elif colour == 1:
-            fade = (y%rainbow_size)/rainbow_size*360
-        elif colour == 2:
-            fade = (z%rainbow_size)/rainbow_size*360
+        fade = (x%rainbow_size)/rainbow_size*360
         h = (fade + colour_speed*n + 60*colour) % 360
+        s = 1.0
+        l = 0.5
+        rgb = hsl_to_rgb(h, s, l)
+        frame.extend(rgb)
+    return frame
+
+def translateZ(coords, offset):
+    new_coords = []
+    for x, y, z in coords:
+        new_coords.append((x, y, z+offset))
+    return new_coords
+
+def spherical(args):
+    n, coords, scale, num_frames = args
+    colour_speed = 360/num_frames*10
+    rotate_speed = 360/num_frames
+
+    # rotation
+    r = R.from_euler("xyz",
+        [0,#rotate_speed*n,
+         0,#rotate_speed*n,
+         rotate_speed*n*3,
+        ],
+        degrees=True)
+
+    offset = scale * 0.5 * math.sin(math.radians(rotate_speed*n))
+
+    new_coords = translateZ(r.apply(coords), offset)
+
+    spheres = [
+        # position,       radius squared
+        ((scale*0.2, 0, 0), math.pow(scale*0.2,2)),
+    ]
+
+    frame = []
+    for x, y, z in new_coords:
+        for i, sphere in enumerate(spheres):
+            sphere_coords, sphere_size = sphere
+            dist = distSqr((x, y, z), sphere_coords)
+            if dist <= sphere_size:
+                colour = i
+                break
+        else:
+            frame.extend([0, 0, 0])
+            continue
+
+        #fade = (x%rainbow_size)/rainbow_size*360
+        h = (colour_speed*n + 60*colour) % 360
         s = 1.0
         l = 0.5
         rgb = hsl_to_rgb(h, s, l)
@@ -202,7 +254,7 @@ def binaryStars(args):
 def makeSequence(frameFunc, coords, scale, num_frames):
     coords = centrifyCoords(coords)
     start = timer()
-    print("starting computations on {} cores".format(cpu_count()))
+    print("generating sequence {} on {} cores".format(frameFunc.__name__, cpu_count()))
     values = [(n, coords, scale, num_frames) for n in range(num_frames)]
 
     with Pool() as pool:
@@ -217,6 +269,41 @@ def makeSequence(frameFunc, coords, scale, num_frames):
         sequence.append(frame)"""
     return sequence
 
+def snakeyFrame(args):
+    n, coords, orig_sequence, snakey_frames = args
+
+    num_frames = len(orig_sequence)
+
+    frame = [0 for i in range(len(coords)*3)]
+    for s in range(snakey_frames):
+        f = (n+s)%num_frames
+        frame = combineFrames(orig_sequence[f], frame)
+    return frame
+
+def snakey(frameFunc, coords, scale, num_frames, snakey_frames):
+    coords = centrifyCoords(coords)
+    start = timer()
+    print("generating snakey sequence {} on {} cores".format(frameFunc.__name__, cpu_count()))
+    values = [(n, coords, scale, num_frames) for n in range(num_frames)]
+
+    with Pool() as pool:
+        orig_sequence = pool.map(frameFunc, values)
+        print(len(orig_sequence), type(orig_sequence))
+    end = timer()
+    print("elapsed time: {}".format(end-start))
+
+    start = timer()
+    print("snakifying sequence on {} cores".format(cpu_count()))
+    values2 = [(n, coords, orig_sequence, snakey_frames) for n in range(num_frames)]
+
+    with Pool() as pool:
+        sequence = pool.map(snakeyFrame, values2)
+        print(len(orig_sequence), type(orig_sequence))
+    end = timer()
+    print("elapsed time: {}".format(end-start))
+
+    return sequence
+
 num_frames = 120*6
 frame_functions = [
     cubeGridRotate,
@@ -229,4 +316,15 @@ for frameFunc in frame_functions:
 
     seq_harvard    = makeSequence(frameFunc, coords_harvard,    scale_harvard,    num_frames)
     writeSequence(frameFunc.__name__, folder_harvard, seq_harvard)
+
+snakey_frames = num_frames//6
+snakey_frame_functions = [
+    spherical,
+]
+for frameFunc in snakey_frame_functions:
+    seq_mattparker = snakey(frameFunc, coords_mattparker, scale_mattparker, num_frames, snakey_frames)
+    writeSequence("snakey"+frameFunc.__name__, folder_mattparker, seq_mattparker)
+
+    seq_harvard    = snakey(frameFunc, coords_harvard, scale_harvard, num_frames, snakey_frames)
+    writeSequence("snakey"+frameFunc.__name__, folder_harvard, seq_harvard)
 

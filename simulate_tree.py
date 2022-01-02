@@ -109,6 +109,7 @@ def frame_generator(seqs, repeats=1):
         for seq, name in seqs:
             print(name)
             for repeat in range(repeats):
+                print("Repeat: {}".format(repeat))
                 for frame in seq:
                     yield frame
 
