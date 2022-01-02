@@ -9,10 +9,18 @@ from scipy.spatial.transform import Rotation as R
 import numpy as np
 import random
 
+# set max brightness because tree power supply struggles
+MAX_BRIGHTNESS = 50
+
 def hsl_to_rgb(h, s, l):
     h = h/360
     rgb = colorsys.hls_to_rgb(h, l, s)
-    return [int(x*255) for x in rgb]
+    return [int(x*MAX_BRIGHTNESS) for x in rgb]
+
+def combine(rgb1, rgb2):
+    r1, g1, b1 = rgb1
+    r2, g2, b2 = rgb2
+    return [max(r1, r2), max(g1, g2), max(b1, b2)]
 
 def getScale(coords):
     xs, ys, zs = zip(*coords)
@@ -75,8 +83,8 @@ def cubeGridRotate(args):
     new_coords = r.apply(coords)
 
     num_colours = 3
-    grid_size = scale * (0.2 + 0.3*abs(math.sin(math.radians(rotate_speed*n))))
-    assert 0.55 > grid_size/scale > 0.15
+    grid_size = scale * 0.5#(0.3 + 0.2*abs(math.sin(math.radians(rotate_speed*n))))
+    assert 0.55 > grid_size/scale > 0.25
 
     frame = []
     for x, y, z in new_coords:
@@ -94,7 +102,56 @@ def cubeGridRotate(args):
         frame.extend(rgb)
     return frame
 
-def orbit(args):
+def cubeGridRotatePlanes(args):
+    n, coords, scale, num_frames = args
+    rainbow_size = scale*5.0
+    colour_speed = 360/num_frames*2
+    rotate_speed = 360/num_frames
+
+    # rotation
+    r = R.from_euler("xyz",
+        [rotate_speed*n*2,
+         rotate_speed*n*3,
+         rotate_speed*n*5,
+        ],
+        degrees=True)
+    new_coords = r.apply(coords)
+
+    grid_size = scale * 0.5#(0.3 + 0.2*abs(math.sin(math.radians(rotate_speed*n))))
+    assert 0.55 > grid_size/scale > 0.25
+
+    threshold = scale*0.05
+
+    frame = []
+    for x, y, z in new_coords:
+        x_plane = x%grid_size < threshold or (grid_size-threshold) < x%grid_size
+        y_plane = y%grid_size < threshold or (grid_size-threshold) < y%grid_size
+        z_plane = z%grid_size < threshold or (grid_size-threshold) < z%grid_size
+
+        if not (x_plane or y_plane or z_plane):
+            frame.extend([0, 0, 0])
+            continue
+
+        x_h = ((x%rainbow_size)/rainbow_size*360 + colour_speed*n +   0) % 360
+        y_h = ((y%rainbow_size)/rainbow_size*360 + colour_speed*n +  60) % 360
+        z_h = ((z%rainbow_size)/rainbow_size*360 + colour_speed*n + 120) % 360
+        s = 1.0
+        l = 0.5
+        x_colour = hsl_to_rgb(x_h, s, l)
+        y_colour = hsl_to_rgb(y_h, s, l)
+        z_colour = hsl_to_rgb(z_h, s, l)
+
+        rgb = [0, 0, 0]
+        if x_plane:
+            rgb = combine(rgb, x_colour)
+        if y_plane:
+            rgb = combine(rgb, y_colour)
+        if z_plane:
+            rgb = combine(rgb, z_colour)
+        frame.extend(rgb)
+    return frame
+
+def binaryStars(args):
     n, coords, scale, num_frames = args
     rainbow_size = scale*10.0
     colour_speed = 360/num_frames*2
@@ -111,8 +168,8 @@ def orbit(args):
 
     planets = [
         # position,       radius squared
-        ((scale/2, 0, 0), math.pow(scale/3,2)),
-        ((-scale/2, 0, 0), math.pow(scale/2,2)),
+        ((scale*0.5, 0, 0), math.pow(scale*0.55,2)),
+        ((scale*-0.6655, 0, 0), math.pow(scale*0.5,2)),
     ]
 
     num_colours = 3
@@ -163,7 +220,8 @@ def makeSequence(frameFunc, coords, scale, num_frames):
 num_frames = 120*6
 frame_functions = [
     cubeGridRotate,
-    orbit,
+    cubeGridRotatePlanes,
+    binaryStars,
 ]
 for frameFunc in frame_functions:
     seq_mattparker = makeSequence(frameFunc, coords_mattparker, scale_mattparker, num_frames)

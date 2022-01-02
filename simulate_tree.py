@@ -11,6 +11,8 @@ Remember that the animation on the real tree might be significantly
 faster or slower than the animation speed of this program.
 """)
 
+MAX_BRIGHTNESS = 50
+
 # use harvard's tree or mattparker's tree
 # default is False
 USE_HARVARD = False
@@ -43,7 +45,7 @@ def get_sequence(filename):
     for i, frame_data in enumerate(sequence_data[1:]): # skip heading row
         frame_num = int(frame_data[0])
         assert frame_num == i
-        frame_data = [float(x)/255 for x in frame_data[1:]] # skip frame num
+        frame_data = [float(x)/50 for x in frame_data[1:]] # skip frame num
         frame = []
         for i in range(0, len(frame_data), 3):
             frame.append(frame_data[i:i+3])
@@ -79,24 +81,23 @@ for row in coords:
 
 ranges = [maxi - mini for mini, maxi in zip(min_coords, max_coords)]
 
-"""
+
 start = (0.5, 0, 1.5)
 curvy = []
 num_frames = 360
 rotate_speed = 360/num_frames
 for n in range(num_frames):
     r = R.from_euler("xyz",
-        [0,#rotate_speed*n,
+        [rotate_speed*n*2,
          rotate_speed*n*3,
-         rotate_speed*n*4,
+         rotate_speed*n*5,
         ],
         degrees=True)
     point = r.apply(start)
     curvy.append(point.tolist())
-print(curvy)
 X, Y, Z = zip(*curvy)
 Z = [z+ranges[2]/2 for z in Z]
-"""
+
 
 # make the plot
 fig = plt.figure()
