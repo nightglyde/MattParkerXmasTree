@@ -3,7 +3,7 @@ from mpl_toolkits import mplot3d
 from mpl_toolkits.mplot3d.axes3d import Axes3D
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-import csv, os
+import csv, os, math
 from scipy.spatial.transform import Rotation as R
 
 print("""
@@ -83,18 +83,22 @@ ranges = [maxi - mini for mini, maxi in zip(min_coords, max_coords)]
 
 
 start = (0.5, 0, 1.5)
+scale = 1
 curvy = []
 num_frames = 360
 rotate_speed = 360/num_frames
 for n in range(num_frames):
     r = R.from_euler("xyz",
-        [rotate_speed*n*2,
-         rotate_speed*n*3,
-         rotate_speed*n*5,
+        [0,#rotate_speed*n*2,
+         0,#rotate_speed*n*3,
+         rotate_speed*n*10,
         ],
         degrees=True)
+    offset = scale * 0.5 * math.sin(math.radians(rotate_speed*n*4))
     point = r.apply(start)
-    curvy.append(point.tolist())
+    x, y, z = point.tolist()
+    z = z + offset
+    curvy.append([x, y, z])
 X, Y, Z = zip(*curvy)
 Z = [z+ranges[2]/2 for z in Z]
 

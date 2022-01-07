@@ -33,6 +33,18 @@ def combineFrames(a, b):
             frame.extend([rb, gb, bb])
     return frame
 
+def colourify(hsls, colour_speed, n):
+    frame = []
+    for hsl in hsls:
+        if hsl is None:
+            frame.extend([0, 0, 0])
+            continue
+        h, s, l = hsl
+        h = (h + colour_speed*n) % 360
+        rgb = hsl_to_rgb(h, s, l)
+        frame.extend(rgb)
+    return frame
+
 def getScale(coords):
     xs, ys, zs = zip(*coords)
     return min(max(xs)-min(xs), max(ys)-min(ys))
@@ -209,7 +221,7 @@ def translateZ(coords, offset):
         new_coords.append((x, y, z+offset))
     return new_coords
 
-def spherical(args):
+def snake(args):
     n, coords, scale, num_frames = args
     colour_speed = 360/num_frames*10
     rotate_speed = 360/num_frames
@@ -218,11 +230,11 @@ def spherical(args):
     r = R.from_euler("xyz",
         [0,#rotate_speed*n,
          0,#rotate_speed*n,
-         rotate_speed*n*3,
+         rotate_speed*n*10,
         ],
         degrees=True)
 
-    offset = scale * 0.5 * math.sin(math.radians(rotate_speed*n))
+    offset = scale * 0.5 * math.sin(math.radians(rotate_speed*n*4))
 
     new_coords = translateZ(r.apply(coords), offset)
 
@@ -240,15 +252,15 @@ def spherical(args):
                 colour = i
                 break
         else:
-            frame.extend([0, 0, 0])
+            frame.append(None)
             continue
 
         #fade = (x%rainbow_size)/rainbow_size*360
         h = (colour_speed*n + 60*colour) % 360
         s = 1.0
         l = 0.5
-        rgb = hsl_to_rgb(h, s, l)
-        frame.extend(rgb)
+        #rgb = hsl_to_rgb(h, s, l)
+        frame.append((h, s, l))#rgb)
     return frame
 
 def makeSequence(frameFunc, coords, scale, num_frames):
@@ -271,13 +283,14 @@ def makeSequence(frameFunc, coords, scale, num_frames):
 
 def snakeyFrame(args):
     n, coords, orig_sequence, snakey_frames = args
-
     num_frames = len(orig_sequence)
+    colour_speed = 360/num_frames*10
 
     frame = [0 for i in range(len(coords)*3)]
     for s in range(snakey_frames):
         f = (n+s)%num_frames
-        frame = combineFrames(orig_sequence[f], frame)
+        coloured_frame = colourify(orig_sequence[f], colour_speed, n)
+        frame = combineFrames(coloured_frame, frame)
     return frame
 
 def snakey(frameFunc, coords, scale, num_frames, snakey_frames):
@@ -317,9 +330,9 @@ for frameFunc in frame_functions:
     seq_harvard    = makeSequence(frameFunc, coords_harvard,    scale_harvard,    num_frames)
     writeSequence(frameFunc.__name__, folder_harvard, seq_harvard)
 
-snakey_frames = num_frames//6
+snakey_frames = num_frames//12
 snakey_frame_functions = [
-    spherical,
+    snake,
 ]
 for frameFunc in snakey_frame_functions:
     seq_mattparker = snakey(frameFunc, coords_mattparker, scale_mattparker, num_frames, snakey_frames)
