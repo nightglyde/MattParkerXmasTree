@@ -59,6 +59,9 @@ def centrifyCoords(coords):
 def distSqr(a, b):
     return math.pow(a[0]-b[0], 2) + math.pow(a[1]-b[1], 2) + math.pow(a[2]-b[2], 2)
 
+def distSqr2D(a, b):
+    return math.pow(a[0]-b[0], 2) + math.pow(a[1]-b[1], 2)
+
 def writeSequence(name, folder, sequence):
     num_lights = len(sequence[0])//3
     filename = "{}/night_{}.csv".format(folder, name)
@@ -249,6 +252,10 @@ def snake(args):
             sphere_coords, sphere_size = sphere
             dist = distSqr((x, y, z), sphere_coords)
             if dist <= sphere_size:
+                colour = i
+                break
+            dist2d = distSqr2D((y, z), sphere_coords[1:])
+            if dist2d <= sphere_size and x > sphere_coords[0]:
                 colour = i
                 break
         else:
